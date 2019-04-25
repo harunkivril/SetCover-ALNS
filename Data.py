@@ -6,12 +6,14 @@ class DataObject:
     def __init__(self,file):
         self._file = file
         self.read_data()
-        self.best_sets = np.array([], dtype=int)
-        self.temp_sol = np.array([], dtype=int)
-        self.current_sets = np.array([], dtype=int)
-        self.best_vector = np.zeros(self.N, dtype= int)
-        self.current_vector = np.zeros(self.N, dtype=int)
-        self.temp_vector = np.zeros(self.N, dtype= int)
+        self.s_best = np.array([], dtype=int)
+        self.s_temp = np.array([], dtype=int)
+        self.s_current = np.array([], dtype=int)
+        self.v_best = np.zeros(self.N, dtype= int)
+        self.v_current = np.zeros(self.N, dtype=int)
+        self.v_temp = np.zeros(self.N, dtype= int)
+
+        self.stuck = False
 
 
     def read_data(self):
@@ -32,44 +34,70 @@ class DataObject:
         self.weights = np.array(self.weights)
 
     def random_initial_solution(self):
-        while(not np.all(self.current_vector) ):
+        while(not np.all(self.v_current) ):
             a = np.random.randint(0,self.M) ## FIXME: aynı sayıdan üretmememiz lazım
-            self.current_sets = np.append(a, self.current_sets)
-            self.current_sets = np.unique(self.current_sets)
-            self.current_vector = np.sum(self.data.iloc[self.current_sets], axis = 0)
-        self.best_vector = self.current_vector
-        self.best_sets = self.current_sets
+            self.s_current = np.append(a, self.s_current)
+            self.s_current = np.unique(self.s_current)
+            self.v_current = np.sum(self.data.iloc[self.s_current], axis = 0)
+        self.v_best = self.v_current
+        self.s_best = self.s_current
 
-    def search_neighbor(self, k):
-        n = len(self.current_sets)
-        temp_vector = np.zeros(self.N)
-        temp_sets = list(self.current_sets)
-        [temp_sets.pop(np.random.randint(0,n-i)) for i in range(k)]
-        for i in temp_sets:
-            temp_vector = np.logical_or(temp_vector,self.data[i])
-        cont = True
-        while(cont):
-            temp_sets2 = temp_sets.copy()
-            temp_vector2 = temp_vector.copy()
-            while(sum(temp_vector2) < self.N):
-                ran = np.random.randint(0,self.M)
-                temp_sets2.append(ran)
-                temp_vector2 = np.logical_or(temp_vector2, self.data[ran])
-            temp_sets2 = np.unique(temp_sets2)
-            cont = (temp_sets2.shape[0] >= n)
+    def repair(self, method):
+        if method == 'Greedy':
+            self.GreedyRepair()
+        elif method == 'Other':
+            self.OtherRepair()
+        else:
+            print('Please select an available method. Options: Greedy, Other')
 
-        return temp_sets2, temp_vector2
+    def GreedyRepair(self):
+        while(not np.all(self.v_temp)):
+            score = []
+            missing = (self.v_temp == 0)
+            for n_set ,sub_set in enumerate(self.data.values):
+                n_missing = np.sum(sub_set[missing])
+                if n_missing == 0:
+                    n_missing = 1.0e-8
+                score.append(self.weights[n_set]/n_missing)
+            self.s_temp = np.append(self.s_temp, np.argmin(score))
+            self.v_temp = np.sum(self.data.iloc[self.s_temp], axis = 0)
 
-    def destroy(self, n):
+    def destroy(self, n, method):
+        score = self.setScoreMethod(method)
+        self.s_temp = self.s_current
+        if self.stuck:
+            for i in range(n):
+                self.s_temp = np.delete(self.s_temp ,np.random.randint(0,len(self.s_temp)))
+        else:
+            print(np.argpartition(score , -n)[-n:])
+            self.s_temp = np.delete(self.s_temp ,np.argpartition(score , -n)[-n:])
+        self.v_temp = np.sum(self.data.iloc[self.s_temp], axis = 0)
+
+    def setScoreMethod(self, method):
+        if method == 'Freq':
+            return self.FreqScore()
+        elif method == 'Weight':
+            return self.WeightScore()
+        else:
+            return self.MixedScore()
+
+    def FreqScore(self):
         score = []
-        for sub_set in self.current_sets:
-            score.append(np.dot(self.data.iloc[sub_set] , self.current_vector))
+        for sub_set in self.s_current:
+            score.append(np.dot(self.data.iloc[sub_set] , self.v_current))
+        return score
 
-        self.temp_sol = self.current_sets
-        print(np.argpartition(score , -n)[-n:])
-        self.temp_sol = np.delete(self.temp_sol ,np.argpartition(score , -n)[-n:])
-        self.temp_vector = np.sum(self.data.iloc[self.temp_sol], axis = 0)
-        missing = np.array(range(self.N))[self.temp_vector == 0]) # FIXME: Repaire taşınacak
+    def WeightScore(self):
+        score = []
+        for sub_set in self.s_current:
+            reg = np.dot(self.data.iloc[sub_set], (self.v_current == 1))
+            score.append(self.weights[sub_set] - (np.max(self.weights)/np.mean(self.weights))**reg)
+        return score
+
+    def MixedScore(self):
+        freq = self.FreqScore()
+        weight = self.WeightScore()
+        return (freq-np.mean(freq))/np.std(freq)+(weight-np.mean(weight))/np.std(weight)
 
     def cost_function(self,set):
         cost = 0
@@ -77,16 +105,22 @@ class DataObject:
             cost += self.weights[i]
         return cost
 
-    def isBest(self):
-        return cost_function(self.temp_sol) < cost_function(self.best_sets)
 
-    def acceptance(self):
-        return cost_function(self.temp_sol) < cost_function(self.current_sets)
+    # def isBest(self):
+    #     return self.cost_function(self.s_temp) < self.cost_function(self.s_best)
+    #
+    # def acceptance(self):
+    #     return self.cost_function(self.s_temp) < self.cost_function(self.s_current)
 
     def set_best(self):
-        if (cost_function(self.temp_sol) < cost_function(self.best_sets)):
-            self.best_sets = self.temp_sol
+        if (self.cost_function(self.s_temp) < self.cost_function(self.s_best)):
+            self.s_best = self.s_temp
+            self.v_best = self.v_temp
 
     def set_current(self):
-        if (cost_function(self.temp_sol) < cost_function(self.current_sets)):
-            self.current_sets = self.temp_sol
+        if (self.cost_function(self.s_temp) < self.cost_function(self.s_current)):
+            self.s_current = self.s_temp
+            self.v_current = self.v_temp
+            self.stuck = False
+        else:
+            self.stuck = True
