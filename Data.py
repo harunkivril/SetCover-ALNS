@@ -1,20 +1,20 @@
 import numpy as np
 import pandas as pd
 
+
 class DataObject:
 
-    def __init__(self,file):
+    def __init__(self, file):
         self._file = file
         self.read_data()
         self.s_best = np.array([], dtype=int)
         self.s_temp = np.array([], dtype=int)
         self.s_current = np.array([], dtype=int)
-        self.v_best = np.zeros(self.N, dtype= int)
+        self.v_best = np.zeros(self.N, dtype=int)
         self.v_current = np.zeros(self.N, dtype=int)
-        self.v_temp = np.zeros(self.N, dtype= int)
+        self.v_temp = np.zeros(self.N, dtype=int)
 
         self.stuck = False
-
 
     def read_data(self):
         with open(self._file) as f:
@@ -34,11 +34,14 @@ class DataObject:
         self.weights = np.array(self.weights)
 
     def random_initial_solution(self):
-        while(not np.all(self.v_current) ):
-            a = np.random.randint(0,self.M) ## FIXME: aynı sayıdan üretmememiz lazım
-            self.s_current = np.append(a, self.s_current)
-            self.s_current = np.unique(self.s_current)
-            self.v_current = np.sum(self.data.iloc[self.s_current], axis = 0)
+        b = self.M + 1
+        while(not np.all(self.v_current)):
+            a = np.random.randint(0, self.M) ## FIXME: aynı sayıdan üretmememiz lazım
+            if not a == b:
+                self.s_current = np.append(a, self.s_current)
+                self.s_current = np.unique(self.s_current)
+                self.v_current += self.data.iloc[a]
+            b = a
         self.v_best = self.v_current
         self.s_best = self.s_current
 
@@ -54,24 +57,25 @@ class DataObject:
         while(not np.all(self.v_temp)):
             score = []
             missing = (self.v_temp == 0)
-            for n_set ,sub_set in enumerate(self.data.values):
+            for n_set, sub_set in enumerate(self.data.values):
                 n_missing = np.sum(sub_set[missing])
                 if n_missing == 0:
                     n_missing = 1.0e-8
                 score.append(self.weights[n_set]/n_missing)
-            self.s_temp = np.append(self.s_temp, np.argmin(score))
-            self.v_temp = np.sum(self.data.iloc[self.s_temp], axis = 0)
+            a = np.argmin(score)
+            self.s_temp = np.append(self.s_temp, a)
+            self.v_temp += self.data.iloc[a]
 
     def destroy(self, n, method):
         score = self.setScoreMethod(method)
         self.s_temp = self.s_current
         if self.stuck:
             for i in range(n):
-                self.s_temp = np.delete(self.s_temp ,np.random.randint(0,len(self.s_temp)))
+                self.s_temp = np.delete(self.s_temp, np.random.randint(0, len(self.s_temp)))
         else:
-            print(np.argpartition(score , -n)[-n:])
-            self.s_temp = np.delete(self.s_temp ,np.argpartition(score , -n)[-n:])
-        self.v_temp = np.sum(self.data.iloc[self.s_temp], axis = 0)
+            print(np.argpartition(score, -n)[-n:])
+            self.s_temp = np.delete(self.s_temp, np.argpartition(score, -n)[-n:])
+        self.v_temp = np.sum(self.data.iloc[self.s_temp], axis=0)
 
     def setScoreMethod(self, method):
         if method == 'Freq':
@@ -84,7 +88,7 @@ class DataObject:
     def FreqScore(self):
         score = []
         for sub_set in self.s_current:
-            score.append(np.dot(self.data.iloc[sub_set] , self.v_current))
+            score.append(np.dot(self.data.iloc[sub_set], self.v_current))
         return score
 
     def WeightScore(self):
