@@ -62,18 +62,19 @@ class DataObject:
                 if n_missing == 0:
                     n_missing = 1.0e-8
                 score.append(self.weights[n_set]/n_missing)
-            self.s_temp = np.append(self.s_temp, np.argmin(score))
-            self.v_temp = np.sum(self.data.iloc[self.s_temp], axis=0)
+            a = np.argmin(score)
+            self.s_temp = np.append(self.s_temp, a)
+            self.v_temp += self.data.iloc[a]
 
     def destroy(self, n, method):
         score = self.setScoreMethod(method)
         self.s_temp = self.s_current
         if self.stuck:
             for i in range(n):
-                self.s_temp = np.delete(self.s_temp ,np.random.randint(0,len(self.s_temp)))
+                self.s_temp = np.delete(self.s_temp, np.random.randint(0, len(self.s_temp)))
         else:
-            print(np.argpartition(score , -n)[-n:])
-            self.s_temp = np.delete(self.s_temp ,np.argpartition(score , -n)[-n:])
+            print(np.argpartition(score, -n)[-n:])
+            self.s_temp = np.delete(self.s_temp, np.argpartition(score, -n)[-n:])
         self.v_temp = np.sum(self.data.iloc[self.s_temp], axis=0)
 
     def setScoreMethod(self, method):
@@ -87,7 +88,7 @@ class DataObject:
     def FreqScore(self):
         score = []
         for sub_set in self.s_current:
-            score.append(np.dot(self.data.iloc[sub_set] , self.v_current))
+            score.append(np.dot(self.data.iloc[sub_set], self.v_current))
         return score
 
     def WeightScore(self):
