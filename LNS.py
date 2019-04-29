@@ -20,11 +20,13 @@ def LNS(data, t , n, lamda, k, w):
             data.set_current()
         if best:
             data.set_best()
-        if iteration >= 5:
-            data.UpdateProbs(accept,best, lamda)
-
+        data.UpdateProbs(accept,best, lamda)
         best_val.append(data.cost_function(data.s_best))
         iteration += 1
-    #plt.plot(best_val)
-    #plt.show()
-    print(iteration)
+
+    # data.LocalSearch()
+    # if best:
+    #      data.set_best()
+    # plt.plot(best_val)
+    # plt.show()
+    # print(iteration)

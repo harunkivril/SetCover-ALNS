@@ -14,7 +14,7 @@ class DataObject:
         self.v_current = np.zeros(self.N, dtype=int)
         self.v_temp = np.zeros(self.N, dtype=int)
         self.p_repair = [0.5, 0.5]
-        self.p_destroy = [ 0.25, 0.25, 0.25, 0.25]
+        self.p_destroy = [0.25]*4
         self.w = np.array([0,0.5,0.8,2])
 
     def read_data(self):
@@ -45,6 +45,7 @@ class DataObject:
             b = a
         self.v_best = self.v_current
         self.s_best = self.s_current
+        #self.LocalSearch()
 
     def repair(self, n):
         self.r_method = np.random.choice(range(2), p=self.p_repair)
@@ -72,67 +73,87 @@ class DataObject:
     def OtherRepair(self, k):
         iter = 0
         while(not np.all(self.v_temp)):
-            # score = []
-            # missing0 = (self.v_temp == 0)
-            # missing1 = (self.v_temp == 1)
-            #
-            # for n_set, sub_set in enumerate(self.data.values):
-            #     n_missing = np.sum(sub_set[missing0]) + np.sum(sub_set[missing1])/k
-            #     if n_missing == 0:
-            #         n_missing = 1.0e-8
-            #     score.append((self.weights[n_set]*(1+k))/n_missing)
-            # a = np.argmin(score)
-            # while (a in self.s_temp):
-            #     score[a] = 1.0e8
-            #     a = np.argmin(score)
-            # while a in np.setdiff1d(self.s_temp, self.s_current):
-            #     score[a] = 1.0e8
-            #     a = np.argmin(score)
-            a = np.min(np.setdiff1d(np.arange(self.M),self.s_temp ))
+            score = []
+            missing0 = (self.v_temp == 0)
+            missing1 = (self.v_temp == 1)
+
+            for n_set, sub_set in enumerate(self.data.values):
+                n_missing = np.any(sub_set[missing0]) +np.any(sub_set[missing1])/k
+                score.append(n_missing/self.weights[n_set])
+                #print(score[n_set])
+            a = np.argmax(score)
+            while (a in self.s_temp):
+                score[a] = 1.0e-8
+                a = np.argmax(score)
             self.s_temp = np.append(self.s_temp, a)
             self.v_temp += self.data.iloc[a]
             iter +=1
-        print(iter)
+        #print(iter)
 
 
     def destroy(self, n):
-        score = self.setScoreMethod()
-        self.s_temp = self.s_current
-        #print(np.argpartition(score, -n)[-n:])
-        self.s_temp = np.delete(self.s_temp, np.argpartition(score, -n)[-n:])
-        self.v_temp = np.sum(self.data.iloc[self.s_temp], axis=0)
-
-    def setScoreMethod(self):
         self.d_method = np.random.choice(range(4), p=self.p_destroy)
         if self.d_method == 0:
-            return self.FreqScore()
+            return self.Freq(n)
         elif self.d_method == 1:
-            return self.WeightScore()
+            return self.Weight(n)
         elif self.d_method == 2:
-            return self.RandomScore()
-        else:
-            return self.MixedScore()
+            return self.Random(n)
+        elif self.d_method == 3:
+            return self.Mixed(n)
 
-    def FreqScore(self):
+
+
+    def Freq(self, n):
         score = []
         for sub_set in self.s_current:
             score.append(np.dot(self.data.iloc[sub_set], self.v_current))
-        return score
+        self.s_temp = self.s_current
+        self.s_temp = np.delete(self.s_temp, np.argpartition(score, -n)[-n:])
+        self.v_temp = np.sum(self.data.iloc[self.s_temp], axis=0)
 
-    def WeightScore(self):
+    def Weight(self, n):
         score = []
         for sub_set in self.s_current:
             reg = np.dot(self.data.iloc[sub_set], (self.v_current == 1))
-            score.append(self.weights[sub_set] - (np.max(self.weights)/np.mean(self.weights))**reg)
-        return score
+            score.append(self.weights[sub_set]/(reg+1))
+        self.s_temp = self.s_current
+        self.s_temp = np.delete(self.s_temp, np.argpartition(score, -n)[-n:])
+        self.v_temp = np.sum(self.data.iloc[self.s_temp], axis=0)
 
-    def MixedScore(self):
-        freq = self.FreqScore()
-        weight = self.WeightScore()
-        return (freq-np.mean(freq))/np.std(freq)+(weight-np.mean(weight))/np.std(weight)
+    def Mixed(self,n):
+        freq = []
+        weight = []
+        for sub_set in self.s_current:
+            weight.append(self.weights[sub_set])
+        for sub_set in self.s_current:
+            freq.append(np.dot(self.data.iloc[sub_set], self.v_current))
+        score = (freq-np.mean(freq))/np.std(freq)+(weight-np.mean(weight))/np.std(weight)
+        self.s_temp = self.s_current
+        self.s_temp = np.delete(self.s_temp, np.argpartition(score, -n)[-n:])
+        self.v_temp = np.sum(self.data.iloc[self.s_temp], axis=0)
 
-    def RandomScore(self):
-        return np.random.random(self.s_current.shape[0])
+    def Random(self,n):
+        score = np.random.random(self.s_current.shape[0])
+        self.s_temp = self.s_current
+        self.s_temp = np.delete(self.s_temp, np.argpartition(score, -n)[-n:])
+        self.v_temp = np.sum(self.data.iloc[self.s_temp], axis=0)
+
+    def LocalSearch(self):
+        self.s_temp = self.s_current
+        self.v_temp = self.v_current
+        while(np.all(self.v_temp)):
+            score = []
+            unique = (self.v_temp == 1)
+            for n_set, sub_set in enumerate(self.s_temp):
+                n_unique = np.sum(self.data.values[sub_set][unique])
+                score.append(n_unique/self.weights[sub_set])
+            a = np.argmin(score)
+            self.s_temp = np.delete(self.s_temp,a)
+            self.v_temp = np.sum(self.data.iloc[self.s_temp], axis=0)
+        self.v_current = self.v_temp
+        self.s_current = self.s_temp
+
 
     def cost_function(self,set):
         cost = 0
@@ -153,12 +174,7 @@ class DataObject:
         self.p_destroy = self.p_destroy/np.sum(self.p_destroy)
         self.p_repair[self.r_method] = self.p_repair[self.r_method]*lamda + w*(1-lamda)
         self.p_repair = self.p_repair/np.sum(self.p_repair)
-        print(self.d_method, ': ' ,self.p_destroy,'***', self.r_method, ': ' ,self.p_repair)
-
-
-
-
-
+        #print(self.d_method, ': ' ,self.p_destroy,'***', self.r_method, ': ' ,self.p_repair)
 
     def isBest(self):
         return self.cost_function(self.s_temp) < self.cost_function(self.s_best)
