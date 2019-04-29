@@ -76,7 +76,6 @@ class DataObject:
             score = []
             missing0 = (self.v_temp == 0)
             missing1 = (self.v_temp == 1)
-
             for n_set, sub_set in enumerate(self.data.values):
                 n_missing = np.any(sub_set[missing0]) +np.any(sub_set[missing1])/k
                 score.append(n_missing/self.weights[n_set])
