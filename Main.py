@@ -4,8 +4,8 @@ import time
 
 buyuk = r'scpnrg2.txt'
 kucuk = r'scp410.txt'
-data = DataObject(kucuk)
-LNS(data,60, 20, 0.8, 3, [0,0.8, 1.2, 2])
+data = DataObject(buyuk)
+ALNS(data,300, 3, 0.9, 10, [0,0.2, 0.4, 1.5])
 #print(data.s_best)
 print(len(data.s_best))
 # data.random_initial_solution()

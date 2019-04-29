@@ -102,8 +102,6 @@ class DataObject:
         elif self.d_method == 3:
             return self.Mixed(n)
 
-
-
     def Freq(self, n):
         score = []
         for sub_set in self.s_current:
@@ -174,7 +172,7 @@ class DataObject:
         self.p_destroy = self.p_destroy/np.sum(self.p_destroy)
         self.p_repair[self.r_method] = self.p_repair[self.r_method]*lamda + w*(1-lamda)
         self.p_repair = self.p_repair/np.sum(self.p_repair)
-        #print(self.d_method, ': ' ,self.p_destroy,'***', self.r_method, ': ' ,self.p_repair)
+        print(self.d_method, ': ' ,self.p_destroy,'***', self.r_method, ': ' ,self.p_repair)
 
     def isBest(self):
         return self.cost_function(self.s_temp) < self.cost_function(self.s_best)

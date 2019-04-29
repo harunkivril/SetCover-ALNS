@@ -33,7 +33,10 @@ for a, set in enumerate(set_list):
 np.savetxt('results.txt',results.reshape(len(set_list)*3*3*2*2*2*dongu))
 
 results = np.loadtxt('results.txt').reshape((3,3,2,2,2,len(set_list),dongu))
-best = []
+bests = []
+best = np.min(results, axis = 6)
+for a in range(len(set_list)):
+    bests.append(np.min(best[:,:,:,:,:,a].ravel()))
 relatives = np.empty((3,3,2,2,2,len(set_list),dongu))
 averages = np.empty((3,3,2,2,2,len(set_list)))
 stds = np.empty((3,3,2,2,2,len(set_list)))
@@ -44,11 +47,11 @@ for b, n in enumerate(ns):
             for e, w_4 in enumerate(w4):
                 for f, k in enumerate(ks):
                     for a, set in enumerate(set_list):
-                        best.append(np.max(results[a].ravel()))
                         for i in range(dongu):
-                            relatives[b][c][d][e][f][a][i] = 100*np.abs(results[b][c][d][e][f][a][i] - best[a])/best[a]
+                            relatives[b][c][d][e][f][a][i] = 100*np.abs(results[b][c][d][e][f][a][i] - bests[a])/bests[a]
                         averages[b][c][d][e][f][a] = np.mean(relatives[b][c][d][e][f][a])
                         stds[b][c][d][e][f][a] = np.std(relatives[b][c][d][e][f][a])
-                    scores[b][c][d][e][f] = np.mean(averages[b][c][d][e][f])/np.mean(stds[b][c][d][e][f])
+                    scores[b][c][d][e][f] = np.mean(averages[b][c][d][e][f][a])/np.mean(stds[b][c][d][e][f][a])
+
 
 np.savetxt('scores.txt',results.reshape(3*3*2*2*2))
